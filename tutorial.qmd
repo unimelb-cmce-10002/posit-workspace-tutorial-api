@@ -1,0 +1,436 @@
+---
+title: "Tutorial 11: Collecting Data with APIs"
+format: html
+---
+
+::: {.callout-tip}
+## Learning Goals {.unnumbered}
+
+By the end of this tutorial, you should be able to:
+
+- Identify the base URL, path, and query parameters in an API request.
+- Construct and send an API request in R using `httr2`.
+- Write a function that changes selected parts of an API request.
+- Use `map()` and `map2()` to repeat API requests across multiple inputs.
+:::
+
+## The Business Challenge
+
+Suppose you work as an analyst at the **Australian Treasury**. 
+You have been asked to put together a dataset that describes how the Australian economy has changed over time.
+
+You are interested in three measures: life expectancy, population, and GDP per capita. 
+The World Bank collects each of these measures and makes them available through its API.
+
+For this analysis, we want observations from **1960 to 2020**, measured every **five years**. 
+We could download the data by hand, but that would mean repeatedly finding and downloading the same kinds of data for different years and indicators.
+
+Instead, we will use the World Bank API to request the data directly. 
+We will start with one indicator in one year, then build up our code until we can collect all three indicators across the full period.
+
+By the end of the tutorial, we will have created a dataset that we can use to study how Australia has changed between 1960 and 2020.
+
+### Libraries
+
+We will need the following libraries:
+
+```{r}
+library(httr2)
+library(tidyverse)
+```
+
+## Prepare these Exercises before Class 
+
+Prepare these exercises before coming to class. Plan to spend 30 minutes on these exercises.
+
+### Exercise 1: Breaking down an API URL
+
+The World Bank API uses URLs to specify the data we want to request.
+
+For example, the following URL requests Australia's life expectancy in 2020:
+
+`https://api.worldbank.org/v2/country/AUS/indicator/SP.DYN.LE00.IN?date=2020&format=json`
+
+Before we build this request in R, break the URL into its three main parts.
+
+**(a)** What is the **base URL**?
+
+*Write your answer here*
+
+**(b)** What is the **path**?
+
+*Write your answer here*
+
+**(c)** What are the **query parameters**?
+
+*Write your answer here*
+
+### Exercise 2: Building the request in R
+
+We will now build the request in R using `httr2`.
+
+Start with the base URL:
+
+```{r}
+#| eval: false
+
+request("https://api.worldbank.org")
+```
+
+**(a)** Add the path to the request.
+
+```{r}
+#| eval: false
+
+request("https://api.worldbank.org") |>
+  YOUR_CODE
+```
+
+**(b)** Add the query parameters so that we request the 2020 observation in JSON format.
+
+```{r}
+#| eval: false
+
+request("https://api.worldbank.org") |>
+  YOUR_CODE |>
+  YOUR_CODE
+```
+
+**(c)** Send the request to the World Bank API and save the response as `response`.
+
+```{r}
+#| eval: false
+response <-
+  request("https://api.worldbank.org") |>
+  YOUR_CODE |>
+  YOUR_CODE |>
+  YOUR_CODE
+```
+
+**(d)** In your own words, explain what each of the following functions does in the request:
+
+- `request()`
+- `req_url_path_append()`
+- `req_url_query()`
+- `req_perform()`
+
+*Write your answer here*
+
+### Exercise 3: Reading the response
+
+We have sent the request and saved the result as `response`.
+
+**(a)** Print `response`.
+
+```{r}
+#| eval: false
+
+response
+```
+
+What does this tell you about whether the request was successful?
+
+*Write your answer here*
+
+**(b)** Use `resp_body_json()` to extract the body of the response and save it as `data_raw`.
+
+```{r}
+#| eval: false
+
+data_raw <-
+  response |>
+  YOUR_CODE
+```
+
+**(c)** Inspect `data_raw`.
+What do you notice about the structure of the object returned by the World Bank API?
+
+*Write your answer here*
+
+
+**(d)** The response contains the data we requested, but it is stored in a nested structure. Cleaning this structure requires several steps that are specific to the World Bank API.
+
+We have provided the following function to do this work for us:
+
+```{r}
+clean_world_bank_data <- function(data_raw) {
+
+  data_raw |>
+    pluck(2) |>
+    tibble(observation = _) |>
+    unnest_wider(observation) |>
+    unnest_wider(
+      indicator,
+      names_sep = "_"
+    ) |>
+    unnest_wider(
+      country,
+      names_sep = "_"
+    ) |>
+    select(
+      country = country_value,
+      country_code = countryiso3code,
+      indicator = indicator_value,
+      indicator_code = indicator_id,
+      year = date,
+      value
+    ) |>
+    mutate(
+      year = as.integer(year)
+    )
+}
+```
+
+Use `clean_world_bank_data()` to create a cleaned dataset called `data` by running this code:
+
+```{r}
+#| eval: false
+
+data <-
+  data_raw |>
+  clean_world_bank_data()
+
+data
+```
+
+
+## In-Class Exercises
+
+You will discuss these exercises in class with your peers in small groups and with your tutor. These exercises build from the exercises you have prepared above, you will get the most value from the class if you have completed those above before coming to class.
+
+### Exercise 4: Turning the request into a function
+
+Suppose we want to request data for multiple combinations of years and indicators.
+
+**(a)** Looking back at the request from the pre-class exercises, which parts of the request would need to change when we move from one year–indicator pair to another?
+Name the two pieces of information that should become arguments to our function.
+
+*Write your answer here*
+
+
+**(b)** Complete the function below.
+
+Call the function `get_indicator()` and give it two arguments: `year` and `indicator`.
+
+```{r}
+#| eval: false
+YOUR_CODE {
+
+  response <-
+    request("https://api.worldbank.org") |>
+    req_url_path_append(
+      "v2",
+      "country",
+      "AUS",
+      "indicator",
+      YOUR_CODE
+    ) |>
+    req_url_query(
+      date = YOUR_CODE,
+      format = "json"
+    ) |>
+    req_perform()
+
+  data_raw <-
+    response |>
+    resp_body_json()
+
+  data <-
+    data_raw |>
+    clean_world_bank_data()
+
+  data
+}
+```
+
+**(c)** Use `get_indicator()` to request life expectancy in 2020.
+
+```{r}
+#| eval: false
+
+get_indicator(
+  year = 2020,
+  indicator = "SP.DYN.LE00.IN"
+)
+```
+
+**(d)** Now use the function to request Australia's population in 2020.
+The World Bank indicator code for population is `"SP.POP.TOTL"`.
+
+```{r}
+#| eval: false
+
+YOUR_CODE
+```
+
+### Exercise 5: Requesting data for many years
+
+We now have a function that can request one indicator for one year. Suppose we want life expectancy for Australia every five years from 1960 to 2020.
+
+**(a)** Create a vector called `years` containing the years from 1960 to 2020 in steps of five.
+
+```{r}
+#| eval: false
+
+years <-
+  seq(
+    from = YOUR_CODE,
+    to = YOUR_CODE,
+    by = 5
+  )
+```
+
+**(b)** Without using `map()`, use `get_indicator()` to request life expectancy for the first three years in `years`. What is changing across these three calls of the function? What is staying the same?
+
+```{r}
+#| eval: false
+
+YOUR_CODE_HERE
+```
+
+**(c)** Use `map()` to repeat the request for every value in `years`.
+
+```{r}
+#| eval: false
+
+life_expectancy <-
+  map(
+    YOUR_CODE,
+    YOUR_CODE,
+    indicator = "SP.DYN.LE00.IN"
+  )
+```
+
+**(d)** Inspect `life_expectancy`.
+What type of object has `map()` returned?
+
+*Write your answer here*
+
+
+**(e)** Use `list_rbind()` to combine the results into one dataset.
+
+```{r}
+#| eval: false
+
+life_expectancy <-
+  life_expectancy |>
+  YOUR_CODE
+```
+
+### Exercise 6: Understanding `map()`
+
+Consider the code we used to request life expectancy for each year:
+
+```{r}
+#| eval: false
+
+life_expectancy <-
+  map(
+    years,
+    get_indicator,
+    indicator = "SP.DYN.LE00.IN"
+  )
+```
+
+**(a)** What is the first argument, `years`, telling `map()`?
+
+*Write your answer here*
+
+**(b)** What is the second argument, `get_indicator`, telling `map()`?
+
+*Write your answer here*
+
+**(c)** Why do we pass `indicator = "SP.DYN.LE00.IN"` separately?
+
+*Write your answer here*
+
+**(d)** Recall that we defined our function as:
+
+```{r}
+#| eval: false
+
+get_indicator <- function(year, indicator) {
+  # ...
+}
+```
+
+Why does it matter that `year` is the first argument of `get_indicator()` in the `map()` call above?
+
+*Write your answer here*
+
+### Exercise 7: Requesting multiple years and indicators
+
+So far, we have used `map()` when one input changes and the other stays fixed.
+
+For our final dataset, we want three indicators:
+
+- life expectancy: `"SP.DYN.LE00.IN"`
+- population: `"SP.POP.TOTL"`
+- GDP per capita: `"NY.GDP.PCAP.CD"`
+
+across every five years from 1960 to 2020.
+
+**(a)** Create a vector called `indicators` containing the three World Bank indicator codes.
+
+```{r}
+#| eval: false
+
+indicators <-
+  c(
+    YOUR_CODE
+  )
+```
+
+**(b)** Use `expand_grid()` to create every combination of `year` and `indicator`.
+
+```{r}
+#| eval: false
+
+requests <-
+  expand_grid(
+    year = YOUR_CODE,
+    indicator = YOUR_CODE
+  )
+```
+
+Inspect `requests`.
+How many rows does it have? What does each row represent?
+
+*Write your answer here*
+
+**(c)** We now want to call `get_indicator()` once for each row of `requests`.
+Complete the code below using `map2()`.
+
+```{r}
+#| eval: false
+
+indicator_data <-
+  map2(
+    YOUR_CODE,
+    YOUR_CODE,
+    YOUR_CODE
+  ) |>
+  list_rbind()
+```
+
+**(d)** Why do we use `map2()` here rather than `map()`?
+
+*Write your answer here*
+
+**(e)** Inspect `indicator_data`.
+How does this dataset differ from the `life_expectancy` dataset we created earlier?
+
+*Write your answer here*
+
+### Exercise 8: Extending the request
+
+So far, our function assumes that every request is for Australia.
+
+**(a)** Suppose we also wanted the country to vary across requests. What would need to change in `get_indicator()`?
+
+*Write your answer here*
+
+**(b)** We used `map()` when one input varied and `map2()` when two inputs varied. If year, indicator, and country all varied, what kind of change would we need to make to our mapping approach?
+
+*Write your answer here*
+
